@@ -1,5 +1,7 @@
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
+const fs = require("fs");
 const videoProcessing = require("./videoProcessing");
 const app = express();
 
@@ -9,6 +11,11 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(express.json());
 app.use(cors());
+// Serve processed videos
+app.use(
+  "/processed-videos",
+  express.static(path.join(__dirname, "processed-videos"))
+);
 
 app.post("/process-scenes", async (req, res) => {
   try {
@@ -31,12 +38,16 @@ app.post("/process-scenes", async (req, res) => {
       scenes,
       reconstructedFileBuffers
     );
-    res.json({
-      processedScenes: processedScenes.map((scene) => ({
-        path: scene.path,
+    const sceneResults = await Promise.all(
+      processedScenes.map(async (scene) => ({
         orderIndex: scene.orderIndex,
-      })),
-    });
+        videoData: await fs.promises.readFile(scene.path, {
+          encoding: "base64",
+        }),
+      }))
+    );
+
+    res.json({ processedScenes: sceneResults });
   } catch (error) {
     console.error("Error processing scenes:", error);
     res
